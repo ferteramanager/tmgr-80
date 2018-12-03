@@ -1,0 +1,109 @@
+#! /bin/bash
+
+# ======================================================================================================================
+# -- TeraManager Execution ---------------------------------------------------------------------------------------------
+# ======================================================================================================================
+
+# -- Shows the Command Syntax ------------------------------------------------------------------------------------------
+
+  function showSyntax() {
+    echo 'tmgr { admin | start | stop | create | client | windows } [options] [files...]'
+    exit 1
+  }
+
+# -- Starts the Server in Administrative Mode for Instance creation ----------------------------------------------------
+
+  function runAdmin() {
+    runKernel tmgr.TeraManager -admin $*
+  }
+
+# -- Starts the Server in Normal Mode ----------------------------------------------------------------------------------
+
+  function runServer() {
+    runKernel tmgr.TeraManager -start=$TMGRINST $*
+  }
+
+# -- Stops the Server --------------------------------------------------------------------------------------------------
+
+  function endServer() {
+    runKernel tmgr.TeraManager -stop -stopport=5000
+  }
+
+# -- Creates the TMGR Infrastructure -----------------------------------------------------------------------------------
+
+  function runCreate() {
+    runKernel tmgr.work.TeraClient $*
+  }
+
+# -- Starts the Commands Client ----------------------------------------------------------------------------------------
+
+  function runClient() {
+    runKernel tmgr.work.TeraClient $*
+  }
+
+# -- Starts the Windows Client -----------------------------------------------------------------------------------------
+
+  function runWindows() {
+    runKernel tmgr.form.TeraGraphics $*
+  }
+
+# -- Gets the Server Status --------------------------------------------------------------------------------------------
+
+  function runStatus() {
+    STAT=`ps -ef | grep "java" | grep "TeraManager" | wc -l`
+    [ "$STAT" == "1" ] && printf "TeraManager Server is running.\n\n" || printf "TeraManager Server is not running.\n\n"
+  }
+
+# -- Runs the Java Kernel ----------------------------------------------------------------------------------------------
+
+  function runKernel() {
+    PROG=$1
+    KRNL=tmgr-8.0-kernel.jar
+    HOST=10.120.62.3
+    shift
+    [ "$PRFL" == "" ] && PRFL="$TMGREXEC/knight.cfg"
+    pushd $TMGRJARS >/dev/null
+    $JAVAEXEC/bin/java $OPTS -cp $KRNL $PROG -profile=$PRFL -host=$HOST -serverport=5000 -stopport=5001 $*
+    popd >/dev/null
+  }
+
+# -- Main Entry Point --------------------------------------------------------------------------------------------------
+
+# [ -f ./tmgr.cfg ] && { . ./tmgr.cfg; } || { echo "Missing TMGR configuration file."; exit 1; }
+  export OPTS="-Xms256m -Xmx1024m -XX:+UseParallelGC"
+  export BOOK="$TMGRINST/_inst/logs"
+  export CMND=$0
+  export PROG=`echo ${1:-none} | tr '[:upper:]' '[:lower:]'`
+  shift
+  case $PROG in
+    start)
+      nohup $CMND server $* >$BOOK/tmgr.hup 2>&1 &
+      ;;
+    stop)
+      endServer $* >$BOOK/server-stop.log
+      ;;
+    admin)
+      BOOK="$TMGREXEC/create.log"
+      runAdmin /tmgr/exec/sql/100.createInstance.sql >$BOOK
+      ;;
+    server)
+      runServer $* 1>$BOOK/server-start.log 2>&1 &
+	  ;;
+	create)
+	  runCreate /tmgr/exec/sql/101.createSchema.sql >>$BOOK
+	  runCreate /tmgr/exec/sqñ/200.createTelco.sql  >>$BOOK
+      ;;
+    client)
+      runClient $*
+      ;;
+    windows)
+      runWindows $*
+      ;;
+    status)
+      runStatus
+      ;;
+    *)
+      showSyntax
+      ;;
+  esac
+
